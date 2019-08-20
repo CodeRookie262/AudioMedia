@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script src="./media.js"></script>
+    <style>
+        * {
+            padding: 0;
+            margin: 0;
+            list-style: none;
+        }
+        
+        body {
+            background: #000;
+        }
+    </style>
+</head>
+
+<body>
+    <audio src="#" id="audio"></audio>
+    <canvas id="canvas"></canvas>
+    <script>
+        let media = new Media({
+                // el: audio,
+                source: './0159_065e_0e5e_6339f96c6b147d84710e94d5ba0cdcbf.m4a',
+                error: () => {},
+                onerror: () => {},
+                pause() {
+                    console.log('暂停了', this)
+                },
+            })
+            .once('canplay', function() {
+                console.log('音乐播放了')
+                console.log(this.$el.play())
+            })
+
+
+
+        media.set({
+            volume: 1,
+            controls: true,
+            loop: true,
+            index: 2333
+        })
+        console.log(media)
+
+        // media.getLoadProgress(function(data) {
+        //     console.log(data)
+        // })
+        var PI = Math.PI;
+        var ctx = canvas.getContext('2d');
+        var cwidth = canvas.width = 400;
+        var cheight = canvas.height = 400;
+        var cr = 100; //环形半径
+        var minHeight = 2;
+        var meterWidth = 5;
+        var meterNum = 250; //设置方块的数量，考虑到闭环的关系
+        var gradient = ctx.createLinearGradient(0, -cr, 0, -cwidth / 2);
+        gradient.addColorStop(0, 'skyblue');
+        gradient.addColorStop(1, 'purple');
+        // gradient.addColorStop(1, 'hotpink');
+        ctx.fillStyle = gradient;
+
+        media.render(function render(array) {
+            var step = Math.round(array.length / meterNum);
+            ctx.clearRect(0, 0, cwidth, cheight);
+            ctx.save();
+            ctx.translate(cwidth / 2, cheight / 2);
+            for (var i = 0; i < meterNum; i++) {
+                var value = array[i * step];
+                var meterHeight = value * (cheight / 2 - cr) / 256 || minHeight;
+                ctx.rotate(5 * PI / meterNum);
+                ctx.fillRect(-meterWidth / 2, -cr - meterHeight, meterWidth, meterHeight);
+            }
+            ctx.restore();
+        })
+    </script>
+</body>
+
+</html>
