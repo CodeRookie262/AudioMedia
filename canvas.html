@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
     <meta charset="UTF-8">
@@ -21,46 +21,23 @@
 </head>
 
 <body>
-    <audio src="#" id="audio"></audio>
-    <video id='video' width="300" src="https://vodkgeyttp8.vod.126.net/cloudmusic/588b/core/5c9c/55738e661b0ab90e7115f895fb5706e4.mp4?wsSecret=78201cf7f6d389f0111b6bee0a035575&wsTime=1566359052"></video>
+    <!-- <audio src="#" id="audio"></audio> -->
+    <!-- <video id='video' width="300" src="https://vodkgeyttp8.vod.126.net/cloudmusic/588b/core/5c9c/55738e661b0ab90e7115f895fb5706e4.mp4?wsSecret=78201cf7f6d389f0111b6bee0a035575&wsTime=1566359052"></video> -->
     <canvas id="canvas"></canvas>
-    <button id="btn">录制音频</button>
-    <!-- <script>
-        // 开启麦克风
-        btn.onclick = function() {
-            window.navigator.mediaDevices.getUserMedia({
-                audio: {
-                    sampleRate: 44100, // 采样率
-                    channelCount: 2, // 声道
-                    volume: 1.0 // 音量
-                }
-            }).then(stream => {
-                console.log(stream)
-            }).catch(err => {
-                console.error(err.name);
-            })
-        }
+    <button id="recordBtn">录制音频</button>
+    <button id="stopBtn">停止</button>
+    <button id="playBtn">播放</button>
 
-        // function saveRecord(stream) {
-        //     let atx = new(AudioContext || webkitAudioContext)();
-        //     let mdeiaNode = atx.createMediaStreamSource(stream);
-        //     mediaNode.connect(atx.destination)
-        // }
-
-        function createNode(AudioContext) {
-            const bufferSize = 4096,
-                inputChannelCount = 2,
-                outputChannelCount = 2;
-            let creator = audioContext.createScriptProcessor || audioContext.createJavaScriptNode;
-            creator = creator.bind(audioContext);
-
-            return creator(bufferSize, inputChannelCount, outputChannelCount)
-        }
-    </script> -->
     <script>
-        let media = new Media({
-                el: video,
-                // source: './0159_065e_0e5e_6339f96c6b147d84710e94d5ba0cdcbf.m4a',
+        let medias = new ZeroMedia()
+        recordBtn.onclick = medias.record
+        stopBtn.onclick = medias.stopRecord
+        playBtn.onclick = medias.playRecord
+    </script>
+    <script>
+        let media = new ZeroMedia({
+                // el: video,
+                source: './0159_065e_0e5e_6339f96c6b147d84710e94d5ba0cdcbf.m4a',
                 error: () => {},
                 onerror: () => {},
                 pause() {
@@ -82,9 +59,6 @@
         })
         console.log(media)
 
-        // media.getLoadProgress(function(data) {
-        //     console.log(data)
-        // })
         var PI = Math.PI;
         var ctx = canvas.getContext('2d');
         var cwidth = canvas.width = 400;
