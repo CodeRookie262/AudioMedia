@@ -1,12 +1,3 @@
-/**
- * @parse el audio 标签
- * @parse source 音频资源 支持网络资源,本地资源和 buffer 等资源格式
- * @parse load 事件 音频加载完毕的事件函数
- * @parse canplay 准备函数 当音频可播放时调用此事件
- * @parse setAudioAttribute 函数 设置自定义属性 如 loop, controls等
- * @parse events 注册事件集合
- *  */
-
 class Media {
     constructor({
         el,
@@ -19,8 +10,8 @@ class Media {
             document.body.appendChild(el)
         }
         try {
-            if (el.tagName !== 'AUDIO') {
-                return console.error(`参数 el 不是 <audio /> 标签`);
+            if (!(el.tagName !== 'AUDIO' || el.tagName !== 'VIDEO')) {
+                return console.error(`参数 el 不是 <audio /> | <video /> 媒体标签`);
             }
         } catch (e) {
             return console.error('参数 el 必须为一个标签');
@@ -179,6 +170,8 @@ class Media {
         return this;
     }
 
+
+
     // 删除事件
     delEvent(type, deleteID) {
         let { $event } = this;
@@ -210,6 +203,9 @@ class Media {
     // 渲染视图函数 参数为一个函数 函数内部的第一个参数为 bufferArray 数据流
     render(cb) {
         let { $el } = this;
+        if ($el.tagName !== 'AUDIO') {
+            return console.warn('音频可视化暂仅支持 <audio /> 标签')
+        }
         let that = this;
         let atx = new AudioContext(),
             analyser = atx.createAnalyser(),
