@@ -295,7 +295,7 @@ class ZeroMedia {
 
     get(key) {
         let { $el } = this;
-        if (typeof key !== 'string') return false;
+        if (typeof key !== 'string') return undefined;
         return $el[key];
     }
 
