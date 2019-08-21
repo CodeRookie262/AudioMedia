@@ -1,4 +1,4 @@
-class Media {
+class ZeroMedia {
     constructor({
         el,
         source,
@@ -19,18 +19,23 @@ class Media {
 
         Object.assign(this, {
             $el: el,
-            option,
-            $event: {}
+            $option: option,
+            $event: {},
+            $record: {
+                buffer: null,
+                leftBurrerList: [],
+                rightBufferList: []
+            }
         })
 
         // 再次修改,将事件属性移动到 events 事件内部去
-        Media.EventCollect.call(this, ...arguments)
+        ZeroMedia.EventCollect.call(this, ...arguments)
 
         this.init({ source })
     }
 
     // 支持原生的音频事件
-    static MEDIA_EVNET = [
+    static ZeroMedia_EVNET = [
         'abort',
         'emptied',
         'durationchange',
@@ -58,7 +63,7 @@ class Media {
 
         for (let fnName in fns) {
             let fn = fns[fnName];
-            if (Media.MEDIA_EVNET.includes(fnName = fnName.replace(/^on/, ''))) {
+            if (ZeroMedia.ZeroMedia_EVNET.includes(fnName = fnName.replace(/^on/, ''))) {
                 // 如果不是一个函数,则无动于衷
                 if (typeof fn !== 'function') continue;
                 if (!$event[fnName]) {
@@ -87,11 +92,96 @@ class Media {
         return (typeof parse === 'object' && parse !== null);
     }
 
+    // 音频数据降维
+    static mergeArray(list) {
+        let length = list.length * list[0].length;
+        let data = new Float32Array(length),
+            offset = 0;
+        for (let i = 0; i < list.length; i++) {
+            data.set(list[i], offset);
+            offset += list[i].length;
+        }
+        return data;
+    }
+
+    //创建音频文件
+    static createWavFile(audioData) {
+        const WAV_HEAD_SIZE = 44;
+        let buffer = new ArrayBuffer(audioData.length * 2 + WAV_HEAD_SIZE),
+            // 需要用一个view来操控buffer
+            view = new DataView(buffer);
+        // 写入wav头部信息
+        // RIFF chunk descriptor/identifier
+        ZeroMedia.writeUTFBytes(view, 0, 'RIFF');
+        // RIFF chunk length
+        view.setUint32(4, 44 + audioData.length * 2, true);
+        // RIFF type
+        ZeroMedia.writeUTFBytes(view, 8, 'WAVE');
+        // format chunk identifier
+        // FMT sub-chunk
+        ZeroMedia.writeUTFBytes(view, 12, 'fmt ');
+        // format chunk length
+        view.setUint32(16, 16, true);
+        // sample format (raw)
+        view.setUint16(20, 1, true);
+        // stereo (2 channels)
+        view.setUint16(22, 2, true);
+        // sample rate
+        view.setUint32(24, 44100, true);
+        // byte rate (sample rate * block align)
+        view.setUint32(28, 44100 * 2, true);
+        // block align (channel count * bytes per sample)
+        view.setUint16(32, 2 * 2, true);
+        // bits per sample
+        view.setUint16(34, 16, true);
+        // data sub-chunk
+        // data chunk identifier
+        ZeroMedia.writeUTFBytes(view, 36, 'data');
+        // data chunk length
+        view.setUint32(40, audioData.length * 2, true);
+
+        let length = audioData.length;
+        let index = 44;
+        let volume = 1;
+        for (let i = 0; i < length; i++) {
+            view.setInt16(index, audioData[i] * (0x7FFF * volume), true);
+            index += 2;
+        }
+        return buffer;
+    }
+
+    // 文件解析
+    static writeUTFBytes(view, offset, string) {
+        var lng = string.length;
+        for (var i = 0; i < lng; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    }
+
+    // 合并音频
+    static interleaveLeftAndRight(left, right) {
+        let totalLength = left.length + right.length;
+        let data = new Float32Array(totalLength);
+        for (let i = 0; i < left.length; i++) {
+            let k = i * 2;
+            data[k] = left[i];
+            data[k + 1] = right[i];
+        }
+        return data;
+    }
+
+
     // 初始化函数
     init({ source }) {
         let { $el } = this;
         source ? ($el.src = source) : console.warn('暂无音频资源可加载');
-        //返回实例
+
+        // 上下文绑定 防止 IIFE 
+        this.record = this.record.bind(this)
+        this.saveRecord = this.saveRecord.bind(this)
+        this.stopRecord = this.stopRecord.bind(this)
+        this.playRecord = this.playRecord.bind(this)
+
         return this;
     }
 
@@ -127,13 +217,13 @@ class Media {
 
     // 准备函数 当音频可播放时调用此事件
     addEvent(type, cb, deleteID) {
-        if (!Media.isFun(cb)) return false;
+        if (!ZeroMedia.isFun(cb)) return false;
 
         if (typeof type !== 'string') {
             return console.error("参数 type 必须用一个字符串来指定事件的类型 如: addEvent('click',function(){...})")
-        } else if (!Media.MEDIA_EVNET.includes(type = type.replace(/^on/, ''))) {
-            console.warn(`Media 事件库不存在对该 ${type} 类型的事件绑定,请查阅事件库支持的事件类型`)
-            console.group('Media 事件库\n' + Media.MEDIA_EVNET.join(' | '))
+        } else if (!ZeroMedia.ZeroMedia_EVNET.includes(type = type.replace(/^on/, ''))) {
+            console.warn(`ZeroMedia 事件库不存在对该 ${type} 类型的事件绑定,请查阅事件库支持的事件类型`)
+            console.group('ZeroMedia 事件库\n' + ZeroMedia.ZeroMedia_EVNET.join(' | '))
             console.groupEnd()
             return false;
         }
@@ -170,15 +260,18 @@ class Media {
         return this;
     }
 
-
-
     // 删除事件
     delEvent(type, deleteID) {
         let { $event } = this;
 
-        if ($event[type]) {
+        if ($event[type] && typeof deleteID === 'string') {
             let index = $event[type].findIndex(item => item.id === deleteID)
             $event[type].splice(index, 1)
+        } else if ($event[type] && typeof deleteID === 'function') {
+            let index = $event[type].findIndex(item => item.fun === deleteID)
+            $event[type].splice(index, 1)
+        } else {
+            console.warn('事件队列中不存在该标识符')
         }
 
         //返回实例
@@ -189,7 +282,7 @@ class Media {
     set(option) {
         let { $el } = this;
 
-        if (!Media.isObject(Media.isFun(option) ? (option = option()) : option)) {
+        if (!ZeroMedia.isObject(ZeroMedia.isFun(option) ? (option = option()) : option)) {
             return console.error('参数 option可以设置为一个对象,或者一个返回值对一个对象(null 除外)的函数')
         }
 
@@ -198,6 +291,12 @@ class Media {
         }
         //返回实例
         return this;
+    }
+
+    get(key) {
+        let { $el } = this;
+        if (typeof key !== 'string') return false;
+        return $el[key];
     }
 
     // 渲染视图函数 参数为一个函数 函数内部的第一个参数为 bufferArray 数据流
@@ -229,6 +328,103 @@ class Media {
         $el.addEventListener('pause', function() {
             clearInterval(timer)
         })
+        return this;
+    }
 
+    record(options = {
+        sampleRate: 44100, // 采样率
+        channelCount: 2, // 声道
+        volume: 1.0 // 音量
+    }) {
+        window.navigator.mediaDevices.getUserMedia({
+            audio: options
+        }).then(mediaStream => {
+            console.log(mediaStream);
+            this.saveRecord.call(this, mediaStream)
+        })
+    }
+
+    saveRecord(mediaStream) {
+        let audioContext = new(window.AudioContext || window.webkitAudioContext);
+        let mediaNode = audioContext.createMediaStreamSource(mediaStream);
+        // 创建一个jsNode
+        let jsNode = ZeroMedia.createJSNode(audioContext);
+        // 需要连到扬声器消费掉outputBuffer，process回调才能触发
+
+        jsNode.connect(audioContext.destination);
+        jsNode.onaudioprocess = this.onAudioProcess.bind(this);
+        // 把mediaNode连接到jsNode
+        mediaNode.connect(jsNode);
+
+        Object.assign(this.$record, { mediaStream, jsNode, mediaNode })
+    }
+
+    static createJSNode(audioContext) {
+        const BUFFER_SIZE = 4096;
+        const INPUT_CHANNEL_COUNT = 2;
+        const OUTPUT_CHANNEL_COUNT = 2;
+
+        let creator = audioContext.createScriptProcessor || audioContext.createJavaScriptNode;
+        creator = creator.bind(audioContext);
+        return creator(BUFFER_SIZE,
+            INPUT_CHANNEL_COUNT, OUTPUT_CHANNEL_COUNT);
+    }
+
+
+    onAudioProcess(event) {
+        let audioBuffer = event.inputBuffer;
+        let leftChannelData = audioBuffer.getChannelData(0),
+            rightChannelData = audioBuffer.getChannelData(1);
+        // 需要克隆一下
+        this.$record.leftBurrerList.push(leftChannelData.slice(0));
+        this.$record.rightBufferList.push(rightChannelData.slice(0));
+    }
+
+    // 暂停录制
+    stopRecord() {
+        console.log(this)
+        let { mediaStream, mediaNode, jsNode, buffer, leftBurrerList, rightBufferList } = this.$record;
+        // 停止录音
+        mediaStream.getAudioTracks()[0].stop();
+        mediaNode.disconnect();
+        jsNode.disconnect();
+        // console.log(leftDataList, rightDataList);
+        let leftData = ZeroMedia.mergeArray(leftBurrerList),
+            rightData = ZeroMedia.mergeArray(rightBufferList);
+        let allData = ZeroMedia.interleaveLeftAndRight(leftData, rightData);
+        console.log(ZeroMedia.createWavFile(allData))
+        this.$record.buffer = ZeroMedia.createWavFile(allData)
+
+    }
+
+    //播放录音
+    playRecord() {
+        let { buffer } = this.$record
+        if (!buffer) {
+            return console.warn('主人,暂无录音可播放~');
+        }
+
+        let blob = new Blob([new Uint8Array(buffer)]);
+        let url = URL.createObjectURL(blob);
+        // 播放前将所有音频清除完毕
+        let videos = document.getElementsByTagName('video'),
+            audios = document.getElementsByTagName('audio');
+
+        for (let i = 0; videos[i] || audios[i]; i++) {
+            videos[i] && videos[i].pause()
+            audios[i] && audios[i].pause()
+        }
+
+        let audio = document.createElement('audio');
+        audio.src = url;
+        document.body.appendChild(audio)
+        audio.oncanplay = function() {
+            console.log('录制音频正在播放中...')
+            this.play()
+        }
+        audio.onended = function() {
+            console.log('音频播放结束')
+            document.body.removeChild(this)
+        }
     }
 }
